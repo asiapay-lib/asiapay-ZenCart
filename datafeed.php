@@ -30,16 +30,17 @@ $eci = $_POST['eci'];
 $payerAuth = $_POST['payerAuth'];
 $sourceIp = $_POST['sourceIp'];
 $ipCountry = $_POST['ipCountry'];
+$secureHash = $_POST['secureHash'];
 
 //confirmation sent to the gateway to explain that the variables have been sent
 echo "OK! " . "orderRef: ". $ref . "<br />";
 
 //connect to DB
-$link = mysql_connect(DB_SERVER, DB_SERVER_USERNAME, DB_SERVER_PASSWORD);
+$link = mysqli_connect(DB_SERVER, DB_SERVER_USERNAME, DB_SERVER_PASSWORD ,DB_DATABASE);
 if (!$link) {
-   	die('Could not connect: ' . mysql_error());
+   	die('Could not connect: ' . mysqli_error());
 }	
-@mysql_select_db(DB_DATABASE) or die( "Unable to select database");
+// @mysql_select_db(DB_DATABASE) or die( "Unable to select database");
 
 //explode reference number and get the value only
 $refFlag = preg_match("/-/", $ref);	
@@ -53,8 +54,8 @@ echo $orderNumber."<br>";
 
 //query final amount and currency type from the DB
 $value_query = "SELECT order_total, currency FROM orders WHERE orders_id ='$orderNumber'";
-$value_result = mysql_query($value_query) or die ("Unable to query"); 
-$value_item= mysql_fetch_assoc($value_result);
+$value_result = mysqli_query($link,$value_query) or die ("Unable to query"); 
+$value_item= mysqli_fetch_assoc($value_result);
 $checkAmt = $value_item['order_total'];
 $checkCur = $value_item['currency'];
 
@@ -128,7 +129,22 @@ if (!status_result){
 	}
 }
 */
-
+$secureHashSecret = MODULE_PAYMENT_PAYDOLLAR_SHSKEY;
+if(trim($secureHash) != ""){	
+	require_once ('includes/modules/pages/checkout_process/SHAPaydollarSecure.php');
+    $paydollarSecure = new SHAPaydollarSecure ();
+			$secureHashs = explode ( ',', $secureHash );
+			// while ( list ( $key, $value ) = each ( $secureHashs ) ) {
+			foreach($secureHashs as $key => $value) {
+				$verifyResult = $paydollarSecure->verifyPaymentDatafeed($src, $prc, $successCode, $ref, $payRef, $cur, $amt, $payerAuth, $secureHashSecret, $value);
+				if ($verifyResult) {
+					break ;
+				}
+			}	
+			if (! $verifyResult) {
+				exit("Secure Hash Validation Failed");
+			}
+		}
 //determination of successful or failed transaction from the POSTed values from the gateway
 if ($successCode == 0 && $prc==0 && $src==0){
 	echo $checkAmt . " " .$amt . "<br />";
@@ -140,9 +156,9 @@ if ($successCode == 0 && $prc==0 && $src==0){
 		$answer = array();
 		
 		$query[0]="UPDATE orders SET orders_status =(SELECT orders_status_id FROM orders_status WHERE orders_status_name = '".SUCCESSSTATUSNAME."') WHERE orders_id='$orderNumber'"; 
-		$answer[0] = mysql_query($query[0]);
+		$answer[0] = mysqli_query($link,$query[0]);
 		if (!$answer[0]){
-			$message  = 'Invalid query: ' . mysql_error() . "\n";
+			$message  = 'Invalid query: ' . mysqli_error() . "\n";
 		    $message .= 'Whole query: ' . $query[0];
 		    die($message);
 		}else{
@@ -150,9 +166,9 @@ if ($successCode == 0 && $prc==0 && $src==0){
 		}
 	
 		$query[1]="UPDATE orders_status_history SET orders_status_id = (SELECT orders_status_id from orders_status WHERE orders_status_name = '".SUCCESSSTATUSNAME."') WHERE orders_id='$orderNumber'"; 
-		$answer[1] = mysql_query($query[1]);	
+		$answer[1] = mysqli_query($link,$query[1]);	
 		if (!$answer[1]){
-			$message  = 'Invalid query: ' . mysql_error() . "\n";
+			$message  = 'Invalid query: ' . mysqli_error() . "\n";
 		    $message .= 'Whole query: ' . $query[1];
 		    die($message);
 		}else{
@@ -160,8 +176,8 @@ if ($successCode == 0 && $prc==0 && $src==0){
 		}
 		
 		$query[2]="SELECT customers_firstname, customers_lastname, customers_email_address FROM customers WHERE customers_id = (SELECT customers_id FROM orders WHERE orders_id = '$orderNumber')";
-		$answer[2] = mysql_query($query[2]) or die ("Unable to query");	
-		$query_assoc= mysql_fetch_assoc($answer[2]);
+		$answer[2] = mysqli_query($link,$query[2]) or die ("Unable to query");	
+		$query_assoc= mysqli_fetch_assoc($answer[2]);
 		$customersFirstName = $query_assoc['customers_firstname'];
 		$customersLastName = $query_assoc['customers_lastname'];
 		$customersEmail = $query_assoc['customers_email_address'];
@@ -177,9 +193,9 @@ if ($successCode == 0 && $prc==0 && $src==0){
 	$answer = array();
 	
 	$query[0]="UPDATE orders SET orders_status=(SELECT orders_status_id FROM orders_status WHERE orders_status_name = '".FAILSTATUSNAME."') WHERE orders_id='$orderNumber'"; 
-	$answer[0] = mysql_query($query[0]);
+	$answer[0] = mysqli_query($link,$query[0]);
 	if (!$answer[0]){
-		$message  = 'Invalid query: ' . mysql_error() . "\n";
+		$message  = 'Invalid query: ' . mysqli_error() . "\n";
 	    $message .= 'Whole query: ' . $query[0];
 	    die($message);
 	}else{
@@ -187,9 +203,9 @@ if ($successCode == 0 && $prc==0 && $src==0){
 	}
 	
 	$query[1]="UPDATE orders_status_history SET orders_status_id = (SELECT orders_status_id FROM orders_status WHERE orders_status_name = '".FAILSTATUSNAME."') WHERE orders_id='$orderNumber'"; 
-	$answer[1] = mysql_query($query[1]);	
+	$answer[1] = mysqli_query($link,$query[1]);	
 	if (!$answer[1]){
-		$message  = 'Invalid query: ' . mysql_error() . "\n";
+		$message  = 'Invalid query: ' . mysqli_error() . "\n";
 	    $message .= 'Whole query: ' . $query[1];
 	    die($message);
 	}else{
@@ -197,8 +213,8 @@ if ($successCode == 0 && $prc==0 && $src==0){
 	}
 	
 	$query[2]="SELECT customers_firstname, customers_lastname, customers_email_address FROM customers WHERE customers_id = (SELECT customers_id FROM orders WHERE orders_id = '$orderNumber')";
-	$answer[2] = mysql_query($query[2]) or die ("Unable to query");	
-	$query_assoc= mysql_fetch_assoc($answer[2]);
+	$answer[2] = mysqli_query($link,$query[2]) or die ("Unable to query");	
+	$query_assoc= mysqli_fetch_assoc($answer[2]);
 	$customersFirstName = $query_assoc['customers_firstname'];
 	$customersLastName = $query_assoc['customers_lastname'];
 	$customersEmail = $query_assoc['customers_email_address'];
@@ -209,5 +225,5 @@ if ($successCode == 0 && $prc==0 && $src==0){
 	echo "FAILED / REJECTED Transaction! <br />";
 }
 
-mysql_close($link);
+mysqli_close($link);
 ?>
