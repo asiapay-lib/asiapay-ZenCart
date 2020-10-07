@@ -162,7 +162,19 @@ $successUrl = $_POST['successUrl'];
 $failUrl = $_POST['failUrl'];
 $cancelUrl = $_POST['cancelUrl'];
 
-header ('Location: '.$form_action_url.'?orderRef='.$orderRef.'&currCode='.$currCode.'&amount='.$amount.'&paymentMethod=CC&payType='.$payType.'&lang='.$lang.'&merchantId='.$merchantId.'&successUrl='.$successUrl.'&failUrl='.$failUrl.'&cancelUrl='.$cancelUrl);
+
+$payType = $_POST['payType'];	
+$secureHashSecret = $_POST['secureHashSecret'];
+if ($secureHashSecret) {
+  require_once ('SHAPaydollarSecure.php');
+  $paydollarSecure = new SHAPaydollarSecure ();
+  $secureHash = $paydollarSecure->generatePaymentSecureHash ( $merchantId, $orderRef, $currCode, $amount, $payType, $secureHashSecret );
+  // $data ['secureHash'] = $secureHash;
+} else {
+  // $data ['secureHash'] = '';
+}
+header ('Location: '.$form_action_url.'?orderRef='.$orderRef.'&currCode='.$currCode.'&amount='.$amount.'&paymentMethod=CC&payType='.$payType.'&lang='.$lang.'&merchantId='.$merchantId.'&successUrl='.$successUrl.'&failUrl='.$failUrl.'&cancelUrl='.$cancelUrl.'&payType='.$payType.'&secureHash='.$secureHash);
+
 
 }else if($integrationType=="directClient"){
 $form_action_url = $_POST['actionUrl'];
